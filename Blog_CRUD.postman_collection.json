@@ -1,0 +1,261 @@
+{
+	"info": {
+		"_postman_id": "blog-crud-001",
+		"name": "Blog CRUD Operations",
+		"description": "Postman collection for creating, editing, and deleting blog posts via Laravel API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Create Blog Post",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 201 || (pm.response.code === 200 && pm.response.json().success)) {",
+							"    var jsonData = pm.response.json();",
+							"    var data = jsonData.data || jsonData;",
+							"    if (data.slug) {",
+							"        pm.collectionVariables.set('blog_slug', data.slug);",
+							"        pm.collectionVariables.set('blog_id', data.id);",
+							"        console.log('✅ Stored slug:', data.slug);",
+							"        console.log('✅ Stored ID:', data.id);",
+							"    }",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"My Amazing Blog Post\",\n  \"content\": \"This is the full content of my blog post. It can contain HTML or plain text.\",\n  \"excerpt\": \"A brief description of the post\",\n  \"category\": \"travel\",\n  \"status\": \"published\",\n  \"featured_image\": \"https://example.com/image.jpg\",\n  \"meta_description\": \"SEO meta description for search engines\",\n  \"tags\": [\"travel\", \"adventure\", \"vacation\"],\n  \"publish_date\": \"2025-01-15T10:00:00.000Z\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/blogs",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"blogs"
+					]
+				},
+				"description": "Create a new blog post. The slug will be automatically generated from the title and stored in collection variables."
+			},
+			"response": []
+		},
+		{
+			"name": "Create Blog Post (Minimal)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Minimal Post\",\n  \"content\": \"Just title and content\",\n  \"status\": \"published\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/blogs",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"blogs"
+					]
+				},
+				"description": "Create a blog post with only required fields (title, content, status)."
+			},
+			"response": []
+		},
+		{
+			"name": "Edit Blog Post (Full Update)",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Updated Blog Post Title\",\n  \"content\": \"This is the updated content of my blog post.\",\n  \"excerpt\": \"Updated brief description\",\n  \"category\": \"lifestyle\",\n  \"status\": \"published\",\n  \"featured_image\": \"https://example.com/new-image.jpg\",\n  \"meta_description\": \"Updated SEO description\",\n  \"tags\": [\"lifestyle\", \"updated\"],\n  \"publish_date\": \"2025-01-16T10:00:00.000Z\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/blogs/{{blog_slug}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"blogs",
+						"{{blog_slug}}"
+					]
+				},
+				"description": "Update all fields of a blog post. Uses the slug from collection variables (set automatically when creating a post)."
+			},
+			"response": []
+		},
+		{
+			"name": "Edit Blog Post (Partial Update)",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Just Updated Title\",\n  \"status\": \"published\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/blogs/{{blog_slug}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"blogs",
+						"{{blog_slug}}"
+					]
+				},
+				"description": "Partially update a blog post (only update specific fields). Uses the slug from collection variables."
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Blog Post",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/blogs/{{blog_slug}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"blogs",
+						"{{blog_slug}}"
+					]
+				},
+				"description": "Delete a blog post by slug. Uses the slug from collection variables (set automatically when creating a post)."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Blog Post by Slug",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/blogs/{{blog_slug}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"blogs",
+						"{{blog_slug}}"
+					]
+				},
+				"description": "Get a single blog post by its slug. The slug is automatically set when you create a post, or you can manually set it in collection variables."
+			},
+			"response": []
+		},
+		{
+			"name": "Get All Blog Posts",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/blogs",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"blogs"
+					]
+				},
+				"description": "Retrieve all blog posts."
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"type": "string"
+		},
+		{
+			"key": "blog_slug",
+			"value": "",
+			"type": "string",
+			"description": "Automatically set when you create a post"
+		},
+		{
+			"key": "blog_id",
+			"value": "",
+			"type": "string",
+			"description": "Automatically set when you create a post"
+		}
+	]
+}
+

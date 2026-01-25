@@ -1,0 +1,311 @@
+{
+	"info": {
+		"_postman_id": "dashboard-blog-crud-001",
+		"name": "Dashboard Blog CRUD Operations",
+		"description": "Postman collection for creating, editing, and deleting blog posts via Dashboard API (localhost:3001)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Create Blog Post",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 201 || pm.response.code === 200) {",
+							"    var jsonData = pm.response.json();",
+							"    if (jsonData.id) {",
+							"        pm.collectionVariables.set('blog_id', jsonData.id);",
+							"        console.log('✅ Stored blog ID:', jsonData.id);",
+							"    }",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"My Amazing Blog Post\",\n  \"content\": \"This is the full content of my blog post. It can contain HTML or plain text.\",\n  \"excerpt\": \"A brief description of the post\",\n  \"category\": \"travel\",\n  \"status\": \"published\",\n  \"featuredImage\": \"https://example.com/image.jpg\",\n  \"metaDescription\": \"SEO meta description for search engines\",\n  \"tags\": [\"travel\", \"adventure\", \"vacation\"],\n  \"publishDate\": \"2025-01-15T10:00:00.000Z\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/blog-posts",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"blog-posts"
+					]
+				},
+				"description": "Create a new blog post in the dashboard. The ID will be automatically stored in collection variables."
+			},
+			"response": []
+		},
+		{
+			"name": "Create Blog Post (Minimal)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Minimal Post\",\n  \"content\": \"Just title and content\",\n  \"status\": \"published\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/blog-posts",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"blog-posts"
+					]
+				},
+				"description": "Create a blog post with only required fields (title, content, status)."
+			},
+			"response": []
+		},
+		{
+			"name": "Edit Blog Post (Full Update)",
+			"request": {
+				"method": "PATCH",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Updated Blog Post Title\",\n  \"content\": \"This is the updated content of my blog post.\",\n  \"excerpt\": \"Updated brief description\",\n  \"category\": \"lifestyle\",\n  \"status\": \"published\",\n  \"featuredImage\": \"https://example.com/new-image.jpg\",\n  \"metaDescription\": \"Updated SEO description\",\n  \"tags\": [\"lifestyle\", \"updated\"],\n  \"publishDate\": \"2025-01-16T10:00:00.000Z\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/blog-posts/{{blog_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"blog-posts",
+						"{{blog_id}}"
+					]
+				},
+				"description": "Update all fields of a blog post. Uses the ID from collection variables (set automatically when creating a post)."
+			},
+			"response": []
+		},
+		{
+			"name": "Edit Blog Post (Partial Update)",
+			"request": {
+				"method": "PATCH",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Just Updated Title\",\n  \"status\": \"published\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/blog-posts/{{blog_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"blog-posts",
+						"{{blog_id}}"
+					]
+				},
+				"description": "Partially update a blog post (only update specific fields). Uses the ID from collection variables."
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Blog Post",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/blog-posts/{{blog_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"blog-posts",
+						"{{blog_id}}"
+					]
+				},
+				"description": "Delete a blog post by ID. Uses the ID from collection variables (set automatically when creating a post)."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Blog Post by ID",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/blog-posts/{{blog_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"blog-posts",
+						"{{blog_id}}"
+					]
+				},
+				"description": "Get a single blog post by its ID. The ID is automatically set when you create a post, or you can manually set it in collection variables."
+			},
+			"response": []
+		},
+		{
+			"name": "Get All Blog Posts",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/blog-posts",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"blog-posts"
+					]
+				},
+				"description": "Retrieve all blog posts from the dashboard."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Blog Posts with Filters",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/blog-posts?search=travel&status=published&category=travel",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"blog-posts"
+					],
+					"query": [
+						{
+							"key": "search",
+							"value": "travel",
+							"description": "Search text"
+						},
+						{
+							"key": "status",
+							"value": "published",
+							"description": "Filter by status"
+						},
+						{
+							"key": "category",
+							"value": "travel",
+							"description": "Filter by category"
+						}
+					]
+				},
+				"description": "Get blog posts with optional filters: search, status, category."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Dashboard Stats",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/blog-posts/stats",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"blog-posts",
+						"stats"
+					]
+				},
+				"description": "Get dashboard statistics (total posts, published posts, drafts, etc.) - same data displayed in the dashboard."
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3001",
+			"type": "string"
+		},
+		{
+			"key": "blog_id",
+			"value": "",
+			"type": "string",
+			"description": "Automatically set when you create a post"
+		}
+	]
+}
+

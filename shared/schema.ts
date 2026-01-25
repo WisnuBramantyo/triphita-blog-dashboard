@@ -117,6 +117,14 @@ export const blogPosts = mysqlTable("blog_posts", {
   // .defaultNow() sets initial timestamp
   // .onUpdateNow() updates timestamp on every record modification
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+  
+  // Laravel post ID - stores the ID from the external Laravel website
+  // This allows us to update the correct post on Laravel when editing
+  laravelPostId: int("laravel_post_id").unique(),
+  
+  // Laravel post slug - stores the slug from the external Laravel website
+  // This is used in the URL for updates and deletes
+  laravelPostSlug: varchar("laravel_post_slug", { length: 255 }).unique(),
 });
 
 /**
@@ -177,6 +185,12 @@ export const insertBlogPostSchema = z.object({
   
   // Publish date validation - optional ISO date string that can be null
   publishDate: z.string().nullable().optional(),
+  
+  // Laravel post ID - optional integer for storing external post ID
+  laravelPostId: z.number().nullable().optional(),
+  
+  // Laravel post slug - optional string for storing external post slug
+  laravelPostSlug: z.string().nullable().optional(),
 });
 
 /**

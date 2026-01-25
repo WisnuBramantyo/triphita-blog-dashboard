@@ -13,6 +13,9 @@ import { insertBlogPostSchema, updateBlogPostSchema, type InsertBlogPost } from 
 // Import Zod for runtime validation
 import { z } from "zod";
 
+// Import Laravel sync helper
+import { syncToLaravel } from "./laravel-sync";
+
 /**
  * API Routes Registration Function
  * 
@@ -201,6 +204,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This will insert the post into MySQL or in-memory storage
       const post = await storage.createBlogPost(validatedData);
       
+      // If post is published, sync to Laravel website
+      if (post.status === "published") {
+        try {
+          console.log("[API] Syncing published post to Laravel...");
+          const laravelResponse = await syncToLaravel(post, false);
+          
+          // Update the post with Laravel ID and slug
+          if (laravelResponse.laravelPostId) {
+            await storage.updateBlogPost(post.id, {
+              laravelPostId: laravelResponse.laravelPostId,
+              laravelPostSlug: laravelResponse.laravelPostSlug,
+            });
+            
+            // Fetch updated post to return with Laravel data
+            const updatedPost = await storage.getBlogPost(post.id);
+            console.log("[API] Successfully synced to Laravel:", laravelResponse);
+            return res.status(201).json(updatedPost);
+          }
+        } catch (laravelError) {
+          // Log error but don't fail the request - post is saved locally
+          console.error("[API] Failed to sync to Laravel (post saved locally):", laravelError);
+          // Continue to return the post even if Laravel sync failed
+        }
+      }
+      
       // Return created post with 201 status (Created)
       // 201 is the standard HTTP status for successful resource creation
       res.status(201).json(post);
@@ -259,12 +287,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This makes all fields optional for PATCH operations
       const validatedData = updateBlogPostSchema.parse(req.body);
       
+      // Get existing post to check for Laravel slug
+      const existingPost = await storage.getBlogPost(id);
+      if (!existingPost) {
+        return res.status(404).json({ message: "Blog post not found" });
+      }
+      
       // Update post in storage layer
       const post = await storage.updateBlogPost(id, validatedData);
       
       // Return 404 if post doesn't exist
       if (!post) {
         return res.status(404).json({ message: "Blog post not found" });
+      }
+      
+      // If post is published, sync to Laravel website
+      if (post.status === "published") {
+        try {
+          console.log("[API] Syncing updated post to Laravel...");
+          const laravelPostSlug = (post as any).laravelPostSlug || (existingPost as any).laravelPostSlug;
+          const laravelResponse = await syncToLaravel(post, true, laravelPostSlug);
+          
+          // Update the post with Laravel ID and slug if we got them
+          if (laravelResponse.laravelPostId) {
+            await storage.updateBlogPost(post.id, {
+              laravelPostId: laravelResponse.laravelPostId,
+              laravelPostSlug: laravelResponse.laravelPostSlug,
+            });
+            
+            // Fetch updated post to return with Laravel data
+            const updatedPost = await storage.getBlogPost(post.id);
+            console.log("[API] Successfully synced to Laravel:", laravelResponse);
+            return res.json(updatedPost);
+          }
+        } catch (laravelError) {
+          // Log error but don't fail the request - post is updated locally
+          console.error("[API] Failed to sync to Laravel (post updated locally):", laravelError);
+          // Continue to return the post even if Laravel sync failed
+        }
       }
       
       // Return updated post as JSON
