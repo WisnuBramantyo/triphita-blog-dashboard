@@ -143,14 +143,33 @@ export async function postToBlogWebsite(blogData: any, isEdit: boolean = false, 
   return response;
 }
 
+/** Combines React Query cancellation with a hard timeout so hung APIs do not load forever. */
+export function mergeQueryFetchSignal(
+  querySignal: AbortSignal | undefined,
+  timeoutMs: number,
+): AbortSignal | undefined {
+  const hasTimeout = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal;
+  const hasAny = typeof AbortSignal !== "undefined" && "any" in AbortSignal;
+  if (hasTimeout && hasAny) {
+    const timeoutSig = AbortSignal.timeout(timeoutMs);
+    if (querySignal) {
+      return AbortSignal.any([querySignal, timeoutSig]);
+    }
+    return timeoutSig;
+  }
+  return querySignal;
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+  async ({ queryKey, signal }) => {
+    const url = queryKey.join("/") as string;
+    const res = await fetch(url, {
       credentials: "include",
+      signal: mergeQueryFetchSignal(signal, 30_000),
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

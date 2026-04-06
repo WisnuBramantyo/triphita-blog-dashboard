@@ -2,13 +2,52 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { FileText, CheckCircle, Edit, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { mergeQueryFetchSignal } from "@/lib/queryClient";
+
+type BlogStats = {
+  totalPosts: number;
+  publishedPosts: number;
+  draftPosts: number;
+  monthlyPosts: number;
+};
 
 export default function StatsCards() {
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isPending, isError, error, refetch } = useQuery({
     queryKey: ["/api/blog-posts/stats"],
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/blog-posts/stats", {
+        credentials: "include",
+        signal: mergeQueryFetchSignal(signal, 30_000),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Failed to load stats (${res.status})`);
+      }
+      return res.json() as Promise<BlogStats>;
+    },
   });
 
-  if (isLoading) {
+  if (isError) {
+    return (
+      <Alert variant="destructive" className="mb-6">
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {error instanceof Error ? error.message : "Could not load statistics."}
+          </span>
+          <button
+            type="button"
+            className="text-sm underline font-medium"
+            onClick={() => void refetch()}
+          >
+            Retry
+          </button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (isPending) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         {[...Array(4)].map((_, i) => (

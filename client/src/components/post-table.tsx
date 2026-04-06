@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, mergeQueryFetchSignal } from "@/lib/queryClient";
 import { Link } from "wouter";
 import DeleteModal from "./delete-modal";
 import type { BlogPost } from "@shared/schema";
@@ -51,15 +51,18 @@ export default function PostTable({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: posts, isLoading } = useQuery({
+  const { data: posts, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["/api/blog-posts", { search: searchQuery, status: statusFilter, category: categoryFilter }],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (statusFilter && statusFilter !== "all") params.append("status", statusFilter);
       if (categoryFilter && categoryFilter !== "all") params.append("category", categoryFilter);
-      
-      const response = await fetch(`/api/blog-posts?${params}`);
+
+      const response = await fetch(`/api/blog-posts?${params}`, {
+        credentials: "include",
+        signal: mergeQueryFetchSignal(signal, 30_000),
+      });
       if (!response.ok) throw new Error("Failed to fetch posts");
       return response.json();
     },
@@ -128,6 +131,21 @@ export default function PostTable({
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-destructive text-sm mb-3">
+            {error instanceof Error ? error.message : "Failed to load posts."}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );

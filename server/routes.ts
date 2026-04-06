@@ -1,8 +1,11 @@
 // Import Express types for TypeScript support
 import type { Express } from "express";
+import { Router } from "express";
 
 // Import Node.js HTTP server creation utilities
 import { createServer, type Server } from "http";
+
+import { registerAuthRoutes, requireAuth } from "./auth";
 
 // Import our storage abstraction layer (MySQL or in-memory)
 import { storage } from "./storage";
@@ -34,7 +37,11 @@ import { syncToLaravel } from "./laravel-sync";
  * @returns HTTP server instance
  */
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+  registerAuthRoutes(app);
+
+  const blogRouter = Router();
+  blogRouter.use(requireAuth);
+
   /**
    * GET /api/blog-posts - Retrieve all blog posts with optional filtering
    * 
@@ -47,7 +54,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * 
    * Used by: Dashboard post table, post listing components
    */
-  app.get("/api/blog-posts", async (req, res) => {
+  blogRouter.get("/", async (req, res) => {
     try {
       // Extract query parameters for filtering from request URL
       // req.query contains all query string parameters as an object
@@ -114,7 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * 
    * Used by: Dashboard overview cards
    */
-  app.get("/api/blog-posts/stats", async (req, res) => {
+  blogRouter.get("/stats", async (req, res) => {
     try {
       // Get statistics from storage layer
       // This calls the storage.getBlogPostStats() method
@@ -142,7 +149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * 
    * Used by: Edit post page, preview page, individual post display
    */
-  app.get("/api/blog-posts/:id", async (req, res) => {
+  blogRouter.get("/:id", async (req, res) => {
     try {
       // Parse ID from URL parameter
       // req.params contains path parameters (like :id)
@@ -189,7 +196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * 
    * Used by: Create post form, draft saving
    */
-  app.post("/api/blog-posts", async (req, res) => {
+  blogRouter.post("/", async (req, res) => {
     try {
       // Debug logging for development
       // Log the incoming request body to help with debugging
@@ -272,7 +279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * 
    * Used by: Edit post form, status updates
    */
-  app.patch("/api/blog-posts/:id", async (req, res) => {
+  blogRouter.patch("/:id", async (req, res) => {
     try {
       // Parse ID from URL parameter
       const id = parseInt(req.params.id);
@@ -359,7 +366,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * 
    * Used by: Delete post functionality
    */
-  app.delete("/api/blog-posts/:id", async (req, res) => {
+  blogRouter.delete("/:id", async (req, res) => {
     try {
       // Parse ID from URL parameter
       const id = parseInt(req.params.id);
@@ -386,6 +393,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to delete blog post" });
     }
   });
+
+  app.use("/api/blog-posts", blogRouter);
 
   // Create HTTP server from Express app
   // This allows us to start the server and listen on a port
