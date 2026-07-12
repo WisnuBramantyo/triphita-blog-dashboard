@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/triphita/dashboard.triphita.com
+    - /usr/bin/rsync -Paz * $DEPLOYPATH --delete
