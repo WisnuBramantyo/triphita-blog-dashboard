@@ -11,7 +11,12 @@ import {
 } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
-export type AuthUser = { username: string };
+export type AuthUser = {
+  id: number;
+  username: string;
+  role: string;
+  avatarUrl: string | null;
+};
 
 type AuthContextValue = {
   user: AuthUser | null;

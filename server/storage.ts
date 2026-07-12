@@ -8,10 +8,19 @@ import { drizzle } from "drizzle-orm/mysql2";
 // Import MySQL database driver with promise support
 // This provides async/await interface for database operations
 import mysql from "mysql2/promise";
+import bcrypt from "bcryptjs";
 
 // Import SQL query operators from Drizzle ORM
 // These provide type-safe query building capabilities
 import { eq, like, or, and, count, desc } from "drizzle-orm";
+
+function dashboardEnvCredential(envKey: string, fallback: string): string {
+  const raw = process.env[envKey];
+  if (raw == null || raw.trim() === "") {
+    return fallback;
+  }
+  return raw.trim();
+}
 
 /**
  * Storage Interface - Abstract data access layer
@@ -32,7 +41,11 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>; // Get user by ID
   getUserByUsername(username: string): Promise<User | undefined>; // Get user by username
   createUser(user: InsertUser): Promise<User>; // Create new user
-  
+  updateUser(
+    id: number,
+    update: Partial<Pick<User, "password" | "role" | "avatarUrl">>,
+  ): Promise<User | undefined>;
+
   // Blog post CRUD operations
   getAllBlogPosts(): Promise<BlogPost[]>; // Get all blog posts
   getBlogPost(id: number): Promise<BlogPost | undefined>; // Get specific blog post
@@ -93,6 +106,26 @@ export class MemStorage implements IStorage {
     // Pre-populate with sample data for development
     // This provides immediate data to work with
     this.initializeSampleData();
+    this.seedDefaultUserIfEmpty();
+  }
+
+  /** Default admin from env when no users exist (in-memory dev). */
+  private seedDefaultUserIfEmpty() {
+    if (this.users.size > 0) {
+      return;
+    }
+    const username = dashboardEnvCredential("DASHBOARD_USERNAME", "admin");
+    const plain = dashboardEnvCredential("DASHBOARD_PASSWORD", "changeme");
+    const hash = bcrypt.hashSync(plain, 10);
+    const id = this.currentUserId++;
+    const user: User = {
+      id,
+      username,
+      password: hash,
+      role: "admin",
+      avatarUrl: null,
+    };
+    this.users.set(id, user);
   }
 
   /**
@@ -176,14 +209,36 @@ export class MemStorage implements IStorage {
     // Generate next available user ID
     const id = this.currentUserId++;
     
-    // Create user object with assigned ID
-    const user: User = { ...insertUser, id };
-    
-    // Store user in Map with ID as key
+    const user: User = {
+      id,
+      username: insertUser.username,
+      password: insertUser.password,
+      role: insertUser.role ?? "writer",
+      avatarUrl: insertUser.avatarUrl ?? null,
+    };
+
     this.users.set(id, user);
     
     // Return created user
     return user;
+  }
+
+  async updateUser(
+    id: number,
+    update: Partial<Pick<User, "password" | "role" | "avatarUrl">>,
+  ): Promise<User | undefined> {
+    const existing = this.users.get(id);
+    if (!existing) {
+      return undefined;
+    }
+    const next: User = {
+      ...existing,
+      ...Object.fromEntries(
+        Object.entries(update).filter(([, v]) => v !== undefined),
+      ),
+    };
+    this.users.set(id, next);
+    return next;
   }
 
   /**
@@ -234,6 +289,8 @@ export class MemStorage implements IStorage {
       publishDate: insertPost.publishDate ? new Date(insertPost.publishDate) : null, // Optional publish date
       createdAt: now, // Set creation timestamp
       updatedAt: now, // Set initial update timestamp
+      laravelPostId: insertPost.laravelPostId ?? null,
+      laravelPostSlug: insertPost.laravelPostSlug ?? null,
     };
     
     // Store blog post in Map with ID as key
@@ -396,6 +453,27 @@ export class MySQLStorage implements IStorage {
     
     // Initialize sample data for development
     this.initializeSampleData();
+    void this.seedDashboardUser();
+  }
+
+  /** Insert default admin from env when the users table is empty (MySQL). */
+  private async seedDashboardUser() {
+    try {
+      const existing = await this.db.select().from(users).limit(1);
+      if (existing.length > 0) {
+        return;
+      }
+      const username = dashboardEnvCredential("DASHBOARD_USERNAME", "admin");
+      const plain = dashboardEnvCredential("DASHBOARD_PASSWORD", "changeme");
+      await this.db.insert(users).values({
+        username,
+        password: bcrypt.hashSync(plain, 10),
+        role: "admin",
+        avatarUrl: null,
+      });
+    } catch (e) {
+      console.error("Error seeding default dashboard user:", e);
+    }
   }
 
   /**
@@ -498,6 +576,20 @@ export class MySQLStorage implements IStorage {
     
     // Return created user (we know it exists since we just created it)
     return newUser!;
+  }
+
+  async updateUser(
+    id: number,
+    update: Partial<Pick<User, "password" | "role" | "avatarUrl">>,
+  ): Promise<User | undefined> {
+    const payload = Object.fromEntries(
+      Object.entries(update).filter(([, v]) => v !== undefined),
+    ) as Partial<Pick<User, "password" | "role" | "avatarUrl">>;
+    if (Object.keys(payload).length === 0) {
+      return this.getUser(id);
+    }
+    await this.db.update(users).set(payload).where(eq(users.id, id));
+    return this.getUser(id);
   }
 
   /**

@@ -14,14 +14,23 @@
 
 // Import Drizzle ORM MySQL-specific table and column types
 // These provide type-safe database schema definitions
-import { mysqlTable, text, int, json, timestamp, varchar } from "drizzle-orm/mysql-core";
-
-// Import Drizzle-Zod integration for automatic schema generation
-// This automatically creates Zod validation schemas from Drizzle table definitions
-import { createInsertSchema } from "drizzle-zod";
+import {
+  mysqlTable,
+  text,
+  int,
+  json,
+  timestamp,
+  varchar,
+  mediumtext,
+} from "drizzle-orm/mysql-core";
 
 // Import Zod for runtime validation and type inference
 import { z } from "zod";
+
+/** Dashboard roles: admin (full), editor (posts + publish), writer (drafts only). */
+export const BLOG_USER_ROLES = ["admin", "editor", "writer"] as const;
+export type BlogUserRole = (typeof BLOG_USER_ROLES)[number];
+export const blogUserRoleSchema = z.enum(BLOG_USER_ROLES);
 
 /**
  * Users Table Schema
@@ -33,6 +42,8 @@ import { z } from "zod";
  * - id: Primary key, auto-increment
  * - username: Unique identifier for login (max 255 chars)
  * - password: Hashed password stored as TEXT
+ * - role: Blog dashboard permission level
+ * - avatarUrl: Optional image (URL or small data URL); MEDIUMTEXT for base64 payloads
  */
 export const users = mysqlTable("users", {
   // Primary key with auto-increment - automatically generates unique IDs
@@ -45,6 +56,10 @@ export const users = mysqlTable("users", {
   // Password field - stores hashed passwords (never plain text)
   // text() allows unlimited length for hash storage
   password: text("password").notNull(),
+
+  role: varchar("role", { length: 32 }).notNull().default("writer"),
+
+  avatarUrl: mediumtext("avatar_url"),
 });
 
 /**
@@ -127,18 +142,12 @@ export const blogPosts = mysqlTable("blog_posts", {
   laravelPostSlug: varchar("laravel_post_slug", { length: 255 }).unique(),
 });
 
-/**
- * User Insert Schema - Validation for user creation
- * 
- * Auto-generated from Drizzle schema but limited to only the fields
- * that should be provided during user registration (excludes ID).
- * 
- * This schema validates user data before database insertion.
- */
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true, // Include username field
-  password: true, // Include password field
-  // Note: id is excluded because it's auto-generated
+/** Validation for creating a user (password must already be hashed on the server). */
+export const insertUserSchema = z.object({
+  username: z.string().min(1).max(255),
+  password: z.string().min(1),
+  role: blogUserRoleSchema.optional(),
+  avatarUrl: z.string().nullable().optional(),
 });
 
 /**

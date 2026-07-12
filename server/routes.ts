@@ -5,7 +5,13 @@ import { Router } from "express";
 // Import Node.js HTTP server creation utilities
 import { createServer, type Server } from "http";
 
-import { registerAuthRoutes, requireAuth } from "./auth";
+import {
+  registerAuthRoutes,
+  requireAuth,
+  forbidWriterDelete,
+  forbidWriterPublishOnBody,
+  forbidWriterPublishOnPatch,
+} from "./auth";
 
 // Import our storage abstraction layer (MySQL or in-memory)
 import { storage } from "./storage";
@@ -196,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * 
    * Used by: Create post form, draft saving
    */
-  blogRouter.post("/", async (req, res) => {
+  blogRouter.post("/", forbidWriterPublishOnBody, async (req, res) => {
     try {
       // Debug logging for development
       // Log the incoming request body to help with debugging
@@ -279,7 +285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * 
    * Used by: Edit post form, status updates
    */
-  blogRouter.patch("/:id", async (req, res) => {
+  blogRouter.patch("/:id", forbidWriterPublishOnPatch, async (req, res) => {
     try {
       // Parse ID from URL parameter
       const id = parseInt(req.params.id);
@@ -366,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * 
    * Used by: Delete post functionality
    */
-  blogRouter.delete("/:id", async (req, res) => {
+  blogRouter.delete("/:id", forbidWriterDelete, async (req, res) => {
     try {
       // Parse ID from URL parameter
       const id = parseInt(req.params.id);
