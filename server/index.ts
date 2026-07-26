@@ -6,7 +6,7 @@ import 'dotenv/config';
 
 const app = express();
 // Required behind cPanel/Apache reverse proxy so secure session cookies work over HTTPS.
-app.set("trust proxy", 1);
+// app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false }));
 configureAuth(app);
