@@ -32,6 +32,28 @@ export const BLOG_USER_ROLES = ["admin", "editor", "writer"] as const;
 export type BlogUserRole = (typeof BLOG_USER_ROLES)[number];
 export const blogUserRoleSchema = z.enum(BLOG_USER_ROLES);
 
+/** http(s) URL with no spaces. `new URL()` accepts spaces; Laravel does not. */
+export function isHttpUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || /\s/.test(trimmed)) {
+    return false;
+  }
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export const optionalHttpUrlSchema = z
+  .string()
+  .nullable()
+  .optional()
+  .refine((value) => value == null || value.trim() === "" || isHttpUrl(value), {
+    message: "Enter a valid image URL (https://…)",
+  });
+
 /**
  * Users Table Schema
  * 
@@ -183,8 +205,7 @@ export const insertBlogPostSchema = z.object({
   // Status validation - string with default value "draft"
   status: z.string().default("draft"),
   
-  // Featured image validation - optional URL string that can be null
-  featuredImage: z.string().nullable().optional(),
+  featuredImage: optionalHttpUrlSchema,
   
   // Meta description validation - optional SEO string that can be null
   metaDescription: z.string().nullable().optional(),

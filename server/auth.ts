@@ -67,8 +67,10 @@ export function configureAuth(app: Express): void {
       secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
+      proxy: true, // honor X-Forwarded-* when behind Passenger/cPanel
       cookie: {
-        secure: process.env.NODE_ENV === "production",
+        // "auto" sets Secure only when the request is HTTPS (needs trust proxy).
+        secure: process.env.NODE_ENV === "production" ? "auto" : false,
         httpOnly: true,
         sameSite: "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,

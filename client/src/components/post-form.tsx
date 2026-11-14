@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast"; // Toast notification system
 import { apiRequest } from "@/lib/queryClient"; // Centralized API request helper
 import RichTextEditor from "./rich-text-editor"; // WYSIWYG editor component
-import type { BlogPost } from "@shared/schema"; // Shared type definitions
+import { isHttpUrl, type BlogPost } from "@shared/schema";
 
 /**
  * Zod validation schema for blog post form data
@@ -35,7 +35,13 @@ const postSchema = z.object({
   excerpt: z.string().optional(), // Optional string field
   category: z.string().optional(), // Optional string field
   status: z.enum(["draft", "published", "scheduled"]).default("draft"), // Must be one of these values
-  featuredImage: z.string().optional(), // Optional URL string
+  featuredImage: z
+    .string()
+    .optional()
+    .refine(
+      (value) => value == null || value.trim() === "" || isHttpUrl(value),
+      { message: "Enter a valid image URL (https://…)" },
+    ),
   metaDescription: z.string().optional(), // Optional SEO description
   tags: z.array(z.string()).optional(), // Optional array of strings
   publishDate: z.string().optional(), // Optional date string
@@ -44,6 +50,45 @@ const postSchema = z.object({
 // Infer TypeScript type from Zod schema - ensures consistency
 // This creates a type that matches the validation schema exactly
 type PostFormData = z.infer<typeof postSchema>;
+
+type ApiIssue = { path?: (string | number)[]; message?: string };
+
+function readApiIssues(err: Error): ApiIssue[] {
+  const jsonStart = err.message.indexOf("{");
+  if (jsonStart === -1) {
+    return [];
+  }
+  try {
+    const body = JSON.parse(err.message.slice(jsonStart)) as {
+      errors?: ApiIssue[];
+    };
+    return Array.isArray(body.errors) ? body.errors : [];
+  } catch {
+    return [];
+  }
+}
+
+function mutationErrorMessage(err: Error, fallback: string): string {
+  const issues = readApiIssues(err);
+  const details = issues
+    .map((issue) => issue.message)
+    .filter((message): message is string => Boolean(message));
+  if (details.length > 0) {
+    return details.join(" ");
+  }
+  const jsonStart = err.message.indexOf("{");
+  if (jsonStart !== -1) {
+    try {
+      const body = JSON.parse(err.message.slice(jsonStart)) as { message?: string };
+      if (body.message) {
+        return body.message;
+      }
+    } catch {
+      /* keep fallback */
+    }
+  }
+  return fallback;
+}
 
 /**
  * Props interface for PostForm component
@@ -90,7 +135,9 @@ export default function PostForm({ post, onSuccess }: PostFormProps) {
    * Handles form state, validation, and submission
    */
   const form = useForm<PostFormData>({
-    resolver: zodResolver(postSchema), // Integrate Zod validation
+    resolver: zodResolver(postSchema),
+    mode: "onBlur",
+    reValidateMode: "onChange",
     defaultValues: {
       // Pre-populate form with existing post data (edit mode) or empty values (create mode)
       title: post?.title || "", // Post title or empty string
@@ -105,6 +152,18 @@ export default function PostForm({ post, onSuccess }: PostFormProps) {
       publishDate: post?.publishDate ? new Date(post.publishDate).toISOString().slice(0, 16) : "",
     },
   });
+
+  function applyApiFieldErrors(err: Error) {
+    const issues = readApiIssues(err);
+    for (const issue of issues) {
+      const field = issue.path?.[0];
+      if (typeof field === "string" && field in form.getValues()) {
+        form.setError(field as keyof PostFormData, {
+          message: issue.message ?? "Invalid value",
+        });
+      }
+    }
+  }
 
   /**
    * React Query mutation for creating new blog posts
@@ -131,9 +190,13 @@ export default function PostForm({ post, onSuccess }: PostFormProps) {
     },
     
     // Error callback - runs if API call fails
-    onError: () => {
-      // Show error notification to user
-      toast({ title: "Error", description: "Failed to create blog post" });
+    onError: (err: Error) => {
+      applyApiFieldErrors(err);
+      toast({
+        title: "Error",
+        description: mutationErrorMessage(err, "Failed to create blog post"),
+        variant: "destructive",
+      });
     },
   });
 
@@ -159,8 +222,13 @@ export default function PostForm({ post, onSuccess }: PostFormProps) {
     },
     
     // Error callback
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update blog post" });
+    onError: (err: Error) => {
+      applyApiFieldErrors(err);
+      toast({
+        title: "Error",
+        description: mutationErrorMessage(err, "Failed to update blog post"),
+        variant: "destructive",
+      });
     },
   });
 
@@ -199,9 +267,7 @@ export default function PostForm({ post, onSuccess }: PostFormProps) {
    * Draft saving handler
    * Called when user clicks "Save as Draft" button
    */
-  const handleSaveDraft = () => {
-    // Get current form values without triggering validation
-    const data = form.getValues();
+  const handleSaveDraft = form.handleSubmit((data) => {
     
     // Parse tags from comma-separated string
     const tags = tagsInput.split(",").map(tag => tag.trim()).filter(Boolean);
@@ -223,7 +289,7 @@ export default function PostForm({ post, onSuccess }: PostFormProps) {
     } else {
       createMutation.mutate(formData);
     }
-  };
+  });
 
   /**
    * Publish handler
@@ -271,7 +337,16 @@ export default function PostForm({ post, onSuccess }: PostFormProps) {
       <CardContent>
         {/* Form element with React Hook Form integration */}
         {/* form.handleSubmit(onSubmit) wraps our submission handler */}
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form
+          onSubmit={form.handleSubmit(onSubmit, () => {
+            toast({
+              title: "Check the form",
+              description: "Fix the highlighted fields before saving.",
+              variant: "destructive",
+            });
+          })}
+          className="space-y-6"
+        >
           {/* First row - Title and Category fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Title field */}
@@ -321,6 +396,11 @@ export default function PostForm({ post, onSuccess }: PostFormProps) {
                 placeholder="https://example.com/image.jpg"
                 className="mt-2"
               />
+              {form.formState.errors.featuredImage && (
+                <p className="text-sm text-red-600 mt-1">
+                  {form.formState.errors.featuredImage.message}
+                </p>
+              )}
             </div>
             
             {/* Publish Date field - datetime-local input type */}
