@@ -1,10 +1,51 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
+import sessionFileStore from "session-file-store";
 import passport from "passport";
 import bcrypt from "bcryptjs";
+import cookie from "cookie";
+import signature from "cookie-signature";
+import path from "path";
+import fs from "fs";
 import { z } from "zod";
 import { storage } from "./storage";
 import { blogUserRoleSchema, type BlogUserRole, type User } from "@shared/schema";
+
+const FileStore = sessionFileStore(session);
+const SESSION_COOKIE_NAME = "connect.sid";
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Secure cookies only when explicitly enabled (Passenger HTTPS headers vary). */
+function sessionCookieSecure(): boolean {
+  return process.env.SESSION_COOKIE_SECURE === "true";
+}
+
+function sessionSecretValue(): string {
+  return process.env.SESSION_SECRET || "dev-only-set-SESSION_SECRET-in-production";
+}
+
+/**
+ * Force Set-Cookie. express-session skips the cookie when secure=true but
+ * Passenger/Apache presents the app as HTTP (req.secure === false).
+ */
+function forceSessionCookie(res: Response, sessionId: string): void {
+  const signed = `s:${signature.sign(sessionId, sessionSecretValue())}`;
+  const serialized = cookie.serialize(SESSION_COOKIE_NAME, signed, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: sessionCookieSecure(),
+    maxAge: Math.floor(SESSION_MAX_AGE_MS / 1000),
+  });
+  const prev = res.getHeader("Set-Cookie");
+  if (prev == null) {
+    res.setHeader("Set-Cookie", serialized);
+  } else if (Array.isArray(prev)) {
+    res.setHeader("Set-Cookie", [...prev.filter(Boolean).map(String), serialized]);
+  } else {
+    res.setHeader("Set-Cookie", [String(prev), serialized]);
+  }
+}
 
 function dashboardCredential(envKey: string, fallback: string): string {
   const raw = process.env[envKey];
@@ -59,21 +100,30 @@ const profilePatchSchema = z
   });
 
 export function configureAuth(app: Express): void {
-  const sessionSecret =
-    process.env.SESSION_SECRET || "dev-only-set-SESSION_SECRET-in-production";
+  const cookieSecure = sessionCookieSecure();
+
+  // File store so sessions survive Passenger multi-process / restarts (MemoryStore does not).
+  const sessionsDir = path.resolve(process.cwd(), "tmp", "sessions");
+  fs.mkdirSync(sessionsDir, { recursive: true });
 
   app.use(
     session({
-      secret: sessionSecret,
+      name: SESSION_COOKIE_NAME,
+      secret: sessionSecretValue(),
       resave: false,
       saveUninitialized: false,
-      proxy: true, // honor X-Forwarded-* when behind Passenger/cPanel
+      proxy: true,
+      store: new FileStore({
+        path: sessionsDir,
+        ttl: 7 * 24 * 60 * 60,
+        retries: 1,
+      }),
       cookie: {
-        // "auto" sets Secure only when the request is HTTPS (needs trust proxy).
-        secure: process.env.NODE_ENV === "production" ? "auto" : false,
+        path: "/",
+        secure: cookieSecure,
         httpOnly: true,
         sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        maxAge: SESSION_MAX_AGE_MS,
       },
     }),
   );
@@ -155,6 +205,8 @@ export function registerAuthRoutes(app: Express): void {
       }
 
       const publicUser = toPublicUser(row);
+      // Ensure express-session will emit a cookie even behind HTTP→HTTPS proxies.
+      req.session.cookie.secure = sessionCookieSecure();
       req.session.passport = { user: row.id };
       req.session.save((saveErr) => {
         if (saveErr) {
@@ -162,6 +214,7 @@ export function registerAuthRoutes(app: Express): void {
           return;
         }
         req.user = publicUser;
+        forceSessionCookie(res, req.sessionID);
         res.json({ user: publicUser });
       });
     } catch (e) {
@@ -176,11 +229,11 @@ export function registerAuthRoutes(app: Express): void {
         return;
       }
       req.user = undefined;
-      res.clearCookie("connect.sid", {
+      res.clearCookie(SESSION_COOKIE_NAME, {
         path: "/",
         httpOnly: true,
         sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
+        secure: sessionCookieSecure(),
       });
       res.json({ ok: true });
     });
