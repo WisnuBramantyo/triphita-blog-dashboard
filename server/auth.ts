@@ -47,24 +47,22 @@ function forceSessionCookie(res: Response, sessionId: string): void {
   }
 }
 
-/** Bearer token fallback when DomaiNesia/Passenger strips Set-Cookie. */
+/**
+ * Bearer token fallback when DomaiNesia/Passenger strips Set-Cookie.
+ * cookie-signature.sign(val) returns "val.sig" — do not wrap the payload again.
+ */
 function issueAccessToken(userId: number): string {
   const expiresAt = Date.now() + SESSION_MAX_AGE_MS;
   const payload = `${userId}.${expiresAt}`;
-  return `${payload}.${signature.sign(payload, sessionSecretValue())}`;
+  return signature.sign(payload, sessionSecretValue());
 }
 
 function verifyAccessToken(token: string): number | null {
-  const parts = token.split(".");
-  if (parts.length !== 3) {
+  const payload = signature.unsign(token, sessionSecretValue());
+  if (payload === false) {
     return null;
   }
-  const [userIdRaw, expiresAtRaw, sig] = parts;
-  const payload = `${userIdRaw}.${expiresAtRaw}`;
-  const expected = signature.sign(payload, sessionSecretValue());
-  if (sig !== expected) {
-    return null;
-  }
+  const [userIdRaw, expiresAtRaw] = payload.split(".");
   const expiresAt = Number(expiresAtRaw);
   const userId = Number(userIdRaw);
   if (!Number.isFinite(expiresAt) || Date.now() > expiresAt || Number.isNaN(userId)) {
