@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Calendar, User, Tag, Edit } from "lucide-react";
 import { format } from "date-fns";
 import type { BlogPost } from "@shared/schema";
+import { authHeaders } from "@/lib/auth-token";
 
 export default function PreviewPost() {
   const { id } = useParams();
@@ -13,7 +14,10 @@ export default function PreviewPost() {
   const { data: post, isLoading, error } = useQuery<BlogPost>({
     queryKey: ["/api/blog-posts", id],
     queryFn: async () => {
-      const response = await fetch(`/api/blog-posts/${id}`);
+      const response = await fetch(`/api/blog-posts/${id}`, {
+        credentials: "include",
+        headers: authHeaders(),
+      });
       if (!response.ok) {
         throw new Error("Failed to fetch post");
       }

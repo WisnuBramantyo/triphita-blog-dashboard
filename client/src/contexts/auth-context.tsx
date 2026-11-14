@@ -10,6 +10,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { authHeaders, setAuthToken } from "@/lib/auth-token";
 
 export type AuthUser = {
   id: number;
@@ -28,8 +29,12 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function fetchSession(): Promise<AuthUser | null> {
-  const res = await fetch("/api/auth/me", { credentials: "include" });
+  const res = await fetch("/api/auth/me", {
+    credentials: "include",
+    headers: authHeaders(),
+  });
   if (res.status === 401) {
+    setAuthToken(null);
     return null;
   }
   if (!res.ok) {
@@ -58,9 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify(credentials),
       });
       const text = await res.text();
-      let body: { message?: string; user?: AuthUser };
+      let body: { message?: string; user?: AuthUser; token?: string };
       try {
-        body = JSON.parse(text) as { message?: string; user?: AuthUser };
+        body = JSON.parse(text) as {
+          message?: string;
+          user?: AuthUser;
+          token?: string;
+        };
       } catch {
         const hint =
           res.headers.get("content-type")?.includes("text/html") &&
@@ -83,6 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             : "Unexpected response from server.",
         );
       }
+      if (typeof body.token === "string" && body.token.length > 0) {
+        setAuthToken(body.token);
+      }
       return body.user;
     },
     onSuccess: (loggedInUser) => {
@@ -92,9 +104,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
+      try {
+        await apiRequest("POST", "/api/logout");
+      } finally {
+        setAuthToken(null);
+      }
     },
     onSettled: () => {
+      setAuthToken(null);
       queryClient.setQueryData(["/api/auth/me"], null);
     },
   });

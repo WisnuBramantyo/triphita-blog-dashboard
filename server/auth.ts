@@ -47,6 +47,32 @@ function forceSessionCookie(res: Response, sessionId: string): void {
   }
 }
 
+/** Bearer token fallback when DomaiNesia/Passenger strips Set-Cookie. */
+function issueAccessToken(userId: number): string {
+  const expiresAt = Date.now() + SESSION_MAX_AGE_MS;
+  const payload = `${userId}.${expiresAt}`;
+  return `${payload}.${signature.sign(payload, sessionSecretValue())}`;
+}
+
+function verifyAccessToken(token: string): number | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    return null;
+  }
+  const [userIdRaw, expiresAtRaw, sig] = parts;
+  const payload = `${userIdRaw}.${expiresAtRaw}`;
+  const expected = signature.sign(payload, sessionSecretValue());
+  if (sig !== expected) {
+    return null;
+  }
+  const expiresAt = Number(expiresAtRaw);
+  const userId = Number(userIdRaw);
+  if (!Number.isFinite(expiresAt) || Date.now() > expiresAt || Number.isNaN(userId)) {
+    return null;
+  }
+  return userId;
+}
+
 function dashboardCredential(envKey: string, fallback: string): string {
   const raw = process.env[envKey];
   if (raw == null || raw.trim() === "") {
@@ -157,10 +183,37 @@ export function configureAuth(app: Express): void {
 
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // If cookies were stripped by the host, accept Authorization: Bearer <token>.
+  app.use((req, _res, next) => {
+    if (req.isAuthenticated() && req.user) {
+      next();
+      return;
+    }
+    const header = req.headers.authorization;
+    if (!header?.startsWith("Bearer ")) {
+      next();
+      return;
+    }
+    const userId = verifyAccessToken(header.slice("Bearer ".length).trim());
+    if (userId == null) {
+      next();
+      return;
+    }
+    void storage.getUser(userId).then(
+      (row) => {
+        if (row) {
+          req.user = toPublicUser(row);
+        }
+        next();
+      },
+      () => next(),
+    );
+  });
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (req.isAuthenticated()) {
+  if (req.isAuthenticated() || req.user) {
     next();
     return;
   }
@@ -215,7 +268,8 @@ export function registerAuthRoutes(app: Express): void {
         }
         req.user = publicUser;
         forceSessionCookie(res, req.sessionID);
-        res.json({ user: publicUser });
+        const token = issueAccessToken(row.id);
+        res.json({ user: publicUser, token });
       });
     } catch (e) {
       next(e);
@@ -240,7 +294,7 @@ export function registerAuthRoutes(app: Express): void {
   });
 
   app.get("/api/auth/me", (req, res) => {
-    if (!req.isAuthenticated() || !req.user) {
+    if (!req.user) {
       res.status(401).json({ message: "Unauthorized" });
       return;
     }

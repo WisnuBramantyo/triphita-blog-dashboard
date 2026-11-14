@@ -4,6 +4,7 @@ import { FileText, CheckCircle, Edit, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { mergeQueryFetchSignal } from "@/lib/queryClient";
+import { authHeaders } from "@/lib/auth-token";
 
 type BlogStats = {
   totalPosts: number;
@@ -18,6 +19,7 @@ export default function StatsCards() {
     queryFn: async ({ signal }) => {
       const res = await fetch("/api/blog-posts/stats", {
         credentials: "include",
+        headers: authHeaders(),
         signal: mergeQueryFetchSignal(signal, 30_000),
       });
       if (!res.ok) {

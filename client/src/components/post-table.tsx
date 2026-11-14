@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, mergeQueryFetchSignal } from "@/lib/queryClient";
+import { authHeaders } from "@/lib/auth-token";
 import { Link } from "wouter";
 import DeleteModal from "./delete-modal";
 import type { BlogPost } from "@shared/schema";
@@ -61,6 +62,7 @@ export default function PostTable({
 
       const response = await fetch(`/api/blog-posts?${params}`, {
         credentials: "include",
+        headers: authHeaders(),
         signal: mergeQueryFetchSignal(signal, 30_000),
       });
       if (!response.ok) throw new Error("Failed to fetch posts");

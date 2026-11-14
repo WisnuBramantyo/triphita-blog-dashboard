@@ -5,6 +5,7 @@ import PostForm from "@/components/post-form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BlogPost } from "@shared/schema";
+import { authHeaders } from "@/lib/auth-token";
 
 export default function EditPost() {
   const [location, setLocation] = useLocation();
@@ -13,7 +14,10 @@ export default function EditPost() {
   const { data: post, isLoading, error } = useQuery({
     queryKey: ["/api/blog-posts", postId],
     queryFn: async () => {
-      const response = await fetch(`/api/blog-posts/${postId}`);
+      const response = await fetch(`/api/blog-posts/${postId}`, {
+        credentials: "include",
+        headers: authHeaders(),
+      });
       if (!response.ok) throw new Error("Failed to fetch post");
       return response.json();
     },
