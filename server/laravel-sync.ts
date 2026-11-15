@@ -119,41 +119,4 @@ export async function syncToLaravel(
   }
 }
 
-/**
- * Delete a blog post on the Laravel website by slug.
- */
-export async function deleteFromLaravel(postSlug: string): Promise<void> {
-  const slug = postSlug.trim();
-  if (!slug) {
-    return;
-  }
-
-  const url = `${LARAVEL_API_URL}${LARAVEL_API_ENDPOINT}/${encodeURIComponent(slug)}`;
-  console.log(`[Laravel Sync] Deleting post with slug: ${slug}`);
-
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: {
-      Accept: "application/json",
-    },
-  });
-
-  const responseText = await response.text();
-
-  // Already gone on Laravel is fine
-  if (response.status === 404) {
-    console.warn(`[Laravel Sync] Post already missing on Laravel: ${slug}`);
-    return;
-  }
-
-  if (!response.ok) {
-    console.error(`[Laravel Sync] Delete error ${response.status}:`, responseText);
-    throw new Error(
-      `Laravel API delete error: ${response.status} - ${responseText.substring(0, 200)}`,
-    );
-  }
-
-  console.log(`[Laravel Sync] Deleted post on Laravel: ${slug}`);
-}
-
 

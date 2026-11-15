@@ -23,7 +23,7 @@ import { insertBlogPostSchema, updateBlogPostSchema, type InsertBlogPost } from 
 import { z } from "zod";
 
 // Import Laravel sync helper
-import { deleteFromLaravel, syncToLaravel } from "./laravel-sync";
+import { syncToLaravel } from "./laravel-sync";
 
 /**
  * API Routes Registration Function
@@ -381,27 +381,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid post ID" });
       }
-
-      const existingPost = await storage.getBlogPost(id);
-      if (!existingPost) {
-        return res.status(404).json({ message: "Blog post not found" });
-      }
-
-      // Remove from Laravel first while we still have the slug
-      const laravelSlug = existingPost.laravelPostSlug;
-      if (laravelSlug) {
-        try {
-          await deleteFromLaravel(laravelSlug);
-        } catch (laravelError) {
-          // Keep local delete usable even if Laravel is down; log for ops
-          console.error(
-            "[API] Failed to delete on Laravel (continuing local delete):",
-            laravelError,
-          );
-        }
-      }
       
       // Delete post from storage layer
+      // Returns boolean indicating if deletion was successful
       const deleted = await storage.deleteBlogPost(id);
       
       // Return 404 if post doesn't exist
